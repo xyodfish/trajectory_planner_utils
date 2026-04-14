@@ -12,6 +12,9 @@ cd build/examples
 ./example_multi_dof
 ./example_straight_trajectory
 ./example_comparison
+./example_stage1_unified_core
+./example_stage2_unified_sas
+./example_stage3_unified_cl
 ```
 
 可视化示例：
@@ -45,6 +48,12 @@ struct BoundaryConditions {
 ```
 
 别名：`vp::BCs<T> = vp::BoundaryConditions<T>`
+
+统一头文件（核心 + 扩展轨迹模块）：
+
+```cpp
+#include <vp/trajectory_planning.h>
+```
 
 ## 一眼选算法
 

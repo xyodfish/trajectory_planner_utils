@@ -1,6 +1,6 @@
 # Project Overview: `trajectory_planner_utils` 🧭
 
-`trajectory_planner_utils` is a focused C++17 motion-planning utility library.
+`trajectory_planner_utils` is a unified C++17 trajectory-planning utility library.
 
 Repository name: `trajectory_planner_utils`  
 CMake package/library name: `velocity_planning`
@@ -44,6 +44,17 @@ Typical use cases:
   - factory-style planner selection (`"TVP"` / `"DSVP"`)
   - unified boundary-condition initialization for multi-axis tasks
 
+### Unified Trajectory Modules (`vp::tp` namespace)
+
+- **Compatibility velocity planner**
+  - `VelocityPlannerCompat` (maps to core `MultiVelocityPlanner`)
+- **Geometry trajectory set**
+  - straight / circle / ellipse / straight-arc-transition
+- **SAS trajectory modules**
+  - multi-point blend and variable-speed variants
+- **Circle-line modules**
+  - normalized/spliced planners (yaml-cpp optional dependency)
+
 ## 3. Architecture Snapshot
 
 ```text
@@ -52,6 +63,9 @@ include/vp/
 ├── trapezoidal_planner.h           # TVP planner
 ├── double_s_planner.h              # DSVP planner
 ├── multi_velocity_planner.h        # planner factory facade
+├── trajectory_planning.h           # one-header unified include
+├── common/                         # shared utilities for trajectory modules
+├── trajectory_plan/                # unified migrated trajectory modules
 ├── geometry_trajectory/
 │   └── straight_trajectory.h       # Cartesian straight line trajectory
 └── curve_interface/
@@ -95,6 +109,7 @@ Required:
 
 Optional:
 - Eigen3
+- yaml-cpp (circle-line modules)
 - Python3 + NumPy + Matplotlib (visualization example only)
 
 Non-goals:

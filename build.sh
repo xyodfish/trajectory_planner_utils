@@ -23,7 +23,10 @@ echo "Configuring CMake..."
 cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_EXAMPLES=ON \
-    -DBUILD_TESTS=OFF
+    -DBUILD_TESTS=OFF \
+    -DBUILD_UNIFIED_TRAJECTORY_MODULES=ON \
+    -DBUILD_UNIFIED_CL_MODULES=ON \
+    -DBUILD_UNIFIED_SAS_MODULES=ON
 
 # Build
 echo ""

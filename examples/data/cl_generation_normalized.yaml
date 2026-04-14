@@ -1,0 +1,10 @@
+vpAlgo_name: "DSVP"
+tp_wp_name: "demo_workpiece"
+max_vel: 0.220
+max_acc: 0.450
+max_jerk: 0.700
+dt: 0.010
+
+cltp_type: "Normalized"
+spliced_config_file: "cl_spliced_config.yaml"
+seg_file_path: "cl_segments.yaml"

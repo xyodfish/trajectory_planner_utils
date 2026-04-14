@@ -20,6 +20,27 @@ target_link_libraries(example_comparison velocity_planning)
 add_executable(example_multi_dof example_multi_dof.cpp)
 target_link_libraries(example_multi_dof velocity_planning)
 
+# Staged executable checks for unified trajectory modules
+if(BUILD_UNIFIED_TRAJECTORY_MODULES)
+    add_executable(example_stage1_unified_core example_stage1_unified_core.cpp)
+    target_link_libraries(example_stage1_unified_core velocity_planning)
+
+    if(VP_SAS_MODULES_COMPILED)
+        add_executable(example_stage2_unified_sas example_stage2_unified_sas.cpp)
+        target_link_libraries(example_stage2_unified_sas velocity_planning)
+    else()
+        message(STATUS "Stage2 SAS example skipped (SAS modules not compiled)")
+    endif()
+
+    if(VP_CL_MODULES_COMPILED)
+        add_executable(example_stage3_unified_cl example_stage3_unified_cl.cpp)
+        target_compile_definitions(example_stage3_unified_cl PRIVATE VP_PROJECT_SOURCE_DIR=\"${PROJECT_SOURCE_DIR}\")
+        target_link_libraries(example_stage3_unified_cl velocity_planning)
+    else()
+        message(STATUS "Stage3 CL example skipped (CL modules not compiled)")
+    endif()
+endif()
+
 # Example: Visualization with matplotlib-cpp
 find_package(Python3 COMPONENTS Development NumPy)
 if(Python3_FOUND AND Python3_NumPy_FOUND)

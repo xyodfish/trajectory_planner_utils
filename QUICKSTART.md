@@ -18,6 +18,18 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON -DBUILD_TESTS=OFF
 cmake --build . -j$(nproc)
 ```
 
+如果你要最完整的一体化轨迹库（推荐）：
+
+```bash
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_EXAMPLES=ON \
+  -DBUILD_UNIFIED_TRAJECTORY_MODULES=ON \
+  -DBUILD_UNIFIED_CL_MODULES=ON \
+  -DBUILD_UNIFIED_SAS_MODULES=ON
+cmake --build . -j$(nproc)
+```
+
 ## 2. 运行示例程序
 
 ```bash
@@ -27,6 +39,9 @@ cd build/examples
 ./example_multi_dof
 ./example_straight_trajectory
 ./example_comparison
+./example_stage1_unified_core
+./example_stage2_unified_sas      # 若 SAS 模块已编译
+./example_stage3_unified_cl       # 若 CL 模块已编译
 ```
 
 ## 3. 在你的项目中接入
@@ -45,7 +60,7 @@ target_include_directories(my_app PRIVATE external/trajectory_planner_utils/incl
 
 ```cpp
 #include <iostream>
-#include <vp/trapezoidal_planner.h>
+#include <vp/trajectory_planning.h>
 
 int main() {
     vp::BCs<double> bc;
@@ -58,7 +73,7 @@ int main() {
     bc.max_jerk        = 0.0;
     bc.delta_t         = 0.01;
 
-    vp::TrapezoidalPlanner planner({bc}, "TVP");
+    vp::TrapezoidalPlanner planner({bc}, "TVP");  // 核心速度规划
     auto trajectory = planner.planTrajs();
 
     std::cout << "Generated " << trajectory.size() << " points" << std::endl;

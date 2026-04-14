@@ -1,236 +1,150 @@
 # Trajectory Planner Utils 🚀
 
-A practical C++17 library for robot motion profile planning.
+一个面向工程落地的 C++17 轨迹规划库。  
+目标很明确：**依赖少、集成快、行为可预测**。
 
-`trajectory_planner_utils` provides reusable implementations for:
-- Trapezoidal velocity profile (`TVP`)
-- Double-S (S-curve) velocity profile (`DSVP`)
-- Cartesian straight-line trajectory generation
-- Multi-DOF planning via a factory-style interface
+这个仓库聚焦把可复用的速度规划与几何轨迹模块统一到一个库中。
 
-It is designed for robotics engineering workflows: easy to integrate, low dependency pressure, and predictable behavior.
+## 为什么用它 🧩
 
-## Why this project
+- ⚡ **快速集成**：一个主库 `velocity_planning`，直接链接即可
+- 🎯 **算法完整**：`TVP`（梯形）、`DSVP`（Double-S）、直线/圆弧/SAS/CL 等轨迹模块
+- 🛠️ **工程友好**：支持按 CMake 开关裁剪模块，尽量减少外部依赖
+- ✅ **可执行验证**：提供 staged examples 和一键测试脚本
 
-- ⚙️ **Engineering-first**: clean interfaces and explicit boundary conditions
-- 🎯 **Motion quality options**: choose fast (`TVP`) or smooth (`DSVP`)
-- 🧩 **Composable design**: curve components can be reused in custom planners
-- 🌍 **Portable**: Linux / macOS / Windows (CMake + C++17)
-- 📊 **Visualization-ready**: optional matplotlib-cpp example for quick analysis
+## 一体化架构（重点）
 
-## Algorithm At A Glance
+统一库：`velocity_planning`
 
-| Planner | Best for | Motion smoothness | Complexity |
-|---|---|---|---|
-| `TVP` (Trapezoidal) | Fast prototyping, simple tasks | Medium (acceleration discontinuity) | Low |
-| `DSVP` (Double-S) | Precision motion, vibration-sensitive systems | High (jerk-limited) | Medium |
-| `StraightTrajectory` | Cartesian end-effector linear motion | Depends on base profile | Medium |
+包含模块：
+- Core 速度规划：`TVP` / `DSVP` / Multi-DOF / StraightTrajectory
+- 兼容层速度规划：`VelocityPlannerCompat`（`vp::tp` 命名空间）
+- 几何轨迹：Straight / Circle / Ellipse / StraightArcTransition
+- SAS 多点轨迹：`MultiPointsTrajectory` / `SASTrajectory`
+- CL 轨迹：`NormalizedCircleLineTrajPlanner` / `SplicedCircleLineTrajPlanner` / `CircleLineTrajGeneration`
 
-## Build
+统一入口头文件：
 
-### Prerequisites
+```cpp
+#include <vp/trajectory_planning.h>
+```
 
+## 依赖与裁剪 🔧
+
+基础依赖：
 - CMake >= 3.16
-- C++17 compiler (GCC/Clang/MSVC)
-- Eigen3 (optional)
+- C++17 编译器
+- Eigen3（推荐）
 
-### Quick build
+可选依赖：
+- `yaml-cpp`：CL / 部分拓展模块需要
+- Python3 dev + NumPy：可视化示例需要
+
+常用 CMake 开关：
+- `-DBUILD_UNIFIED_TRAJECTORY_MODULES=ON`
+- `-DBUILD_UNIFIED_CL_MODULES=ON/OFF`
+- `-DBUILD_UNIFIED_SAS_MODULES=ON/OFF`
+- `-DBUILD_UNIFIED_TOTG_ADAPTER=ON/OFF`
+- `-DBUILD_UNIFIED_PLOTTING=ON/OFF`
+
+## 快速开始（推荐）
 
 ```bash
 ./build.sh
 ```
 
-Manual build:
+或手动构建：
 
 ```bash
-mkdir -p build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON -DBUILD_TESTS=OFF
+mkdir -p build && cd build
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_EXAMPLES=ON \
+  -DBUILD_TESTS=OFF \
+  -DBUILD_UNIFIED_TRAJECTORY_MODULES=ON \
+  -DBUILD_UNIFIED_CL_MODULES=ON \
+  -DBUILD_UNIFIED_SAS_MODULES=ON
 cmake --build . -j$(nproc)
 ```
 
-Install:
+## 一分钟验证 ✅
 
 ```bash
-cd build
-sudo make install
+./test_all.sh
 ```
 
-## 60-Second Usage
+脚本会自动跑：
+- 基础速度规划 examples
+- staged unified examples（stage1/2/3）
+- 可视化示例（若环境满足）
 
-### 1) Trapezoidal profile (`TVP`)
+## 示例路线图（从 core 到完整轨迹）
 
-```cpp
-#include <vp/trapezoidal_planner.h>
-
-vp::BCs<double> bc;
-bc.start_state.pos = 0.0;
-bc.start_state.vel = 0.0;
-bc.goal_state.pos  = 1.0;
-bc.goal_state.vel  = 0.0;
-bc.max_vel         = 0.5;
-bc.max_acc         = 0.3;
-bc.max_jerk        = 0.0;   // not used by TVP
-bc.delta_t         = 0.01;
-
-vp::TrapezoidalPlanner planner({bc}, "TVP");
-auto traj = planner.planTrajs();
-// point format: [time, pos, vel, acc]
+```bash
+cd build/examples
+./example_stage1_unified_core
+./example_stage2_unified_sas
+./example_stage3_unified_cl
 ```
 
-### 2) Double-S profile (`DSVP`)
+含义：
+- `stage1`：统一 core（速度规划 + 基础直线轨迹）
+- `stage2`：SAS 多点轨迹
+- `stage3`：CL 轨迹（normalized / spliced / generation）
+
+## 最小集成示例
 
 ```cpp
-#include <vp/double_s_planner.h>
+#include <vp/trajectory_planning.h>
 
-vp::BCs<double> bc;
-bc.start_state.pos = 0.0;
-bc.start_state.vel = 0.0;
-bc.start_state.acc = 0.0;
-bc.goal_state.pos  = 1.0;
-bc.goal_state.vel  = 0.0;
-bc.goal_state.acc  = 0.0;
-bc.max_vel         = 0.5;
-bc.max_acc         = 0.3;
-bc.max_jerk        = 0.5;   // required by DSVP
-bc.delta_t         = 0.01;
+int main() {
+    std::vector<vp::tp::BCs<double>> bcs(1);
+    vp::tp::initDefaultBCs(bcs, 0.4, 0.3, 0.5, 0.01);
+    bcs[0].s_state.pos = 0.0;
+    bcs[0].g_state.pos = 1.0;
 
-vp::DoubleSPlanner planner({bc}, "DSVP", 0.95);
-auto traj = planner.planTrajs();
-// point format: [time, pos, vel, acc, jerk]
-```
-
-### 3) Multi-DOF planning
-
-```cpp
-#include <vp/multi_velocity_planner.h>
-
-std::vector<vp::BCs<double>> bcs(6);
-vp::MultiVelocityPlanner::initDefaultBCs(bcs, 0.5, 0.3, 0.5, 0.01);
-
-vp::MultiVelocityPlanner planner(bcs, "DSVP");
-auto traj = planner.getTrajs();
-```
-
-### 4) Cartesian straight-line trajectory
-
-```cpp
-#include <vp/geometry_trajectory/straight_trajectory.h>
-
-std::vector<double> start_pose = {0.0, 0.0, 0.5, 0.0, 0.0, 0.0};
-std::vector<double> goal_pose  = {0.5, 0.3, 0.8, 0.0, 0.0, 1.57};
-
-vp::BCs<double> bc;
-bc.start_state.pos = 0.0;
-bc.goal_state.pos  = 1.0;
-bc.max_vel         = 0.5;
-bc.max_acc         = 0.3;
-bc.max_jerk        = 0.5;
-bc.delta_t         = 0.01;
-
-vp::StraightTrajectory straight(start_pose, goal_pose, {bc}, "DSVP");
-auto cart_traj = straight.getTrajs();
-// sample format: [time, x, y, z, rx, ry, rz, ...]
-```
-
-## Exceptions & Error Codes
-
-```cpp
-try {
-    vp::TrapezoidalPlanner planner({bc}, "TVP");
-    auto traj = planner.planTrajs();
-} catch (const vp::PlannerException& e) {
-    std::cerr << "Error " << e.errorCode() << ": " << e.what() << std::endl;
+    vp::tp::VelocityPlannerCompat planner(bcs, "DSVP");
+    auto raw = planner.getTrajs(false);
+    return raw.empty() ? 1 : 0;
 }
 ```
 
-Common error codes:
-- `1001`: constraints missing
-- `1002`: calculated pose is empty
-- `1008`: value out of boundary
-- `1009`: empty input value
+## 输出数据约定 📐
 
-## Run Examples
+常见轨迹点格式：
+- 速度轨迹：`[time, pos, vel, acc, jerk]`
+- 6D 轨迹：`[time, pose(6), vel(6), acc(6)]`
 
-```bash
-cd build/examples
-./example_trapezoidal
-./example_double_s
-./example_straight_trajectory
-./example_comparison
-./example_multi_dof
-```
-
-## Visualization (Optional) 📊
-
-`example_visualization` is enabled when Python3 dev + NumPy are found.
-
-Dependencies (Ubuntu/Debian):
-
-```bash
-sudo apt install python3-dev python3-numpy python3-matplotlib
-```
-
-Run:
-
-```bash
-cd build/examples
-./example_visualization
-```
-
-Generated images:
-- `velocity_comparison.png`
-- `double_s_kinematics.png`
-- `cartesian_trajectory.png`
-- `acceleration_comparison.png`
-
-More details: [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md)
-
-## Project Structure
+## 项目结构
 
 ```text
 trajectory_planner_utils/
 ├── include/vp/
-│   ├── velocity_planner_interface.h
-│   ├── planner_exception.h
-│   ├── trapezoidal_planner.h
-│   ├── double_s_planner.h
-│   ├── multi_velocity_planner.h
+│   ├── trajectory_planning.h
 │   ├── velocity_planning.h
-│   ├── curve_interface/
-│   └── geometry_trajectory/
-├── include/third_party/
-│   └── matplotlibcpp.h
+│   ├── common/
+│   ├── trajectory_plan/
+│   ├── geometry_trajectory/
+│   └── curve_interface/
 ├── src/
 ├── examples/
-├── CMakeLists.txt
 ├── build.sh
-└── *.md
+├── test_all.sh
+└── README.md
 ```
 
-## Docs Map
+## 文档索引
 
-- [QUICKSTART.md](QUICKSTART.md): 5-minute onboarding
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md): API and decision cheat sheet
-- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md): architecture and module-level perspective
-- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md): plotting workflow and troubleshooting
+- [QUICKSTART.md](QUICKSTART.md)
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md)
 
 ## Roadmap
 
-- [ ] Add unit tests (GoogleTest)
-- [ ] Add CI checks (build + examples)
-- [ ] Add Python bindings (pybind11)
-- [ ] Add ROS/ROS2 examples
-- [ ] Add benchmark suite
-
-## Contributing
-
-Issues and PRs are welcome.
-
-If you want to contribute a new planner, keep it aligned with the existing `VelocityPlannerInterface` and provide:
-- clear constraints definition
-- deterministic output format
-- at least one example program
+- [ ] 增加 GTest 单测覆盖（重点覆盖 unified modules）
+- [ ] 增加 CI（构建 + staged examples）
+- [ ] 增加 benchmark 与性能回归
 
 ## License
 
@@ -238,4 +152,4 @@ Apache License 2.0
 
 ---
 
-Build trajectories with fewer surprises, and debug them with plots before your robot finds the surprises for you 🤖✨
+让轨迹规划更像工程系统，而不只是一个“能跑起来”的 demo 🤖
