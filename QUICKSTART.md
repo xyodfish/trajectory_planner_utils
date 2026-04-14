@@ -1,39 +1,53 @@
-# Quick Start Guide
+# Quick Start Guide ⚡
 
-## 5分钟快速上手 Velocity Planning Library
+5 分钟内把 `trajectory_planner_utils` 跑起来。
 
-### 1. 构建库
+## 1. 一条命令构建
 
 ```bash
-cd velocity_planning
+cd trajectory_planner_utils
 ./build.sh
 ```
 
-### 2. 运行示例
+如果你喜欢手动控制参数：
 
 ```bash
+mkdir -p build
 cd build
-./examples/example_trapezoidal
-./examples/example_multi_dof
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON -DBUILD_TESTS=OFF
+cmake --build . -j$(nproc)
 ```
 
-### 3. 在你的项目中使用
+## 2. 运行示例程序
 
-#### CMakeLists.txt
+```bash
+cd build/examples
+./example_trapezoidal
+./example_double_s
+./example_multi_dof
+./example_straight_trajectory
+./example_comparison
+```
+
+## 3. 在你的项目中接入
+
+### CMakeLists.txt（推荐：源码方式集成）
+
 ```cmake
-find_package(velocity_planning REQUIRED)
+add_subdirectory(external/trajectory_planner_utils)
 
 add_executable(my_app main.cpp)
-target_link_libraries(my_app velocity_planning)
+target_link_libraries(my_app PRIVATE velocity_planning)
+target_include_directories(my_app PRIVATE external/trajectory_planner_utils/include)
 ```
 
-#### main.cpp - 简单示例
+### `main.cpp` 最小示例
+
 ```cpp
-#include <vp/velocity_planning.h>
 #include <iostream>
+#include <vp/trapezoidal_planner.h>
 
 int main() {
-    // 定义边界条件
     vp::BCs<double> bc;
     bc.start_state.pos = 0.0;
     bc.start_state.vel = 0.0;
@@ -41,39 +55,28 @@ int main() {
     bc.goal_state.vel  = 0.0;
     bc.max_vel         = 0.5;
     bc.max_acc         = 0.3;
+    bc.max_jerk        = 0.0;
     bc.delta_t         = 0.01;
-    
-    // 创建规划器并生成轨迹
+
     vp::TrapezoidalPlanner planner({bc}, "TVP");
     auto trajectory = planner.planTrajs();
-    
+
     std::cout << "Generated " << trajectory.size() << " points" << std::endl;
-    
     return 0;
 }
 ```
 
-### 4. 多自由度规划
+## 4. 常见参数建议
+
+- `delta_t`: 推荐先用 `0.01`（10ms）
+- `TVP`: 原型开发/实时性优先
+- `DSVP`: 平滑性优先（务必设置 `max_jerk`）
+
+## 5. 错误处理模板
 
 ```cpp
-#include <vp/multi_velocity_planner.h>
+#include <vp/planner_exception.h>
 
-// 6轴机器人
-std::vector<vp::BCs<double>> bcs(6);
-vp::MultiVelocityPlanner::initDefaultBCs(bcs, 0.5, 0.3, 0.0, 0.01);
-
-// 设置目标位置
-bcs[0].goal_state.pos = 0.5;
-bcs[1].goal_state.pos = -0.3;
-// ... 其他轴
-
-vp::MultiVelocityPlanner planner(bcs, "TVP");
-auto trajectory = planner.getTrajs();
-```
-
-### 5. 错误处理
-
-```cpp
 try {
     vp::TrapezoidalPlanner planner({bc}, "TVP");
     auto traj = planner.planTrajs();
@@ -82,53 +85,27 @@ try {
 }
 ```
 
-### 常见错误码
+常见错误码：
+- `1001`: 未提供约束条件
+- `1002`: 计算的位置为空
+- `1008`: 值超出边界
+- `1009`: 输入为空
 
-| 代码 | 说明 |
-|------|------|
-| 1001 | 未提供约束条件 |
-| 1002 | 计算的位置为空 |
-| 1008 | 值超出边界 |
-| 1009 | 输入值为空 |
+## 6. 需要画图？
 
-## API 速查
+安装可视化依赖后可运行：
 
-### 核心类
-
-- **`vp::KinematicState<T>`** - 运动学状态（时间、位置、速度、加速度、加加速度）
-- **`vp::BoundaryConditions<T>`** - 边界条件（起点、终点、最大速度/加速度/加加速度）
-- **`vp::TrapezoidalPlanner`** - 梯形速度规划器
-- **`vp::MultiVelocityPlanner`** - 多自由度规划器（工厂模式）
-
-### 主要方法
-
-```cpp
-// 规划轨迹
-auto traj = planner.planTrajs(isNormalized);
-
-// 获取运动学状态
-auto states = planner.planKStates(isNormalized);
-
-// 查询特定时间的状态
-auto state = planner.getKState(time);
-
-// 获取终点位置
-auto end_pos = planner.getEndTraj();
+```bash
+sudo apt install python3-dev python3-numpy python3-matplotlib
+cd build/examples
+./example_visualization
 ```
+
+会输出 4 张 PNG 图，适合做调参与报告展示 📊
 
 ## 下一步
 
-- 📖 阅读完整的 [README.md](README.md)
-- 💻 查看 [examples/](examples/) 目录的更多示例
-- 🔧 查看 [EXTRACTION_SUMMARY.md](EXTRACTION_SUMMARY.md) 了解模块详情
-- 🐛 遇到问题？提交 Issue！
-
-## 支持的平台
-
-- ✅ Linux (Ubuntu 20.04+)
-- ✅ Windows (MSVC 2019+)
-- ✅ macOS (Clang 10+)
-
-## 许可证
-
-Apache License 2.0 - 可自由用于商业和开源项目
+- 阅读主文档：[README.md](README.md)
+- API 速查：[QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+- 架构说明：[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+- 可视化细节：[VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md)

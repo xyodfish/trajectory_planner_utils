@@ -1,349 +1,241 @@
-# Velocity Planning Library
+# Trajectory Planner Utils 🚀
 
-A lightweight, header-friendly C++ library for robot velocity profile planning. This library provides implementations of common velocity planning algorithms used in robotics and motion control.
+A practical C++17 library for robot motion profile planning.
 
-## Features
+`trajectory_planner_utils` provides reusable implementations for:
+- Trapezoidal velocity profile (`TVP`)
+- Double-S (S-curve) velocity profile (`DSVP`)
+- Cartesian straight-line trajectory generation
+- Multi-DOF planning via a factory-style interface
 
-- ✅ **Trapezoidal Velocity Profile** - Classic acceleration-cruise-deceleration profile
-- ✅ **Double-S (S-Curve) Profile** - Smooth jerk-limited trajectory with 7 phases
-- ✅ **Cartesian Straight Line Trajectory** - Linear motion in Cartesian space with pose interpolation
-- ✅ **Multi-DOF Support** - Plan trajectories for multiple degrees of freedom
-- ✅ **Factory Pattern** - Easy to extend with new planning algorithms
-- ✅ **Curve Interface** - Modular design with ConstantJerk and PiecewiseTrajectory
-- ✅ **Header-only Friendly** - Minimal dependencies (only Eigen3 optional)
-- ✅ **Cross-platform** - Works on Linux, Windows, macOS
+It is designed for robotics engineering workflows: easy to integrate, low dependency pressure, and predictable behavior.
 
-## Quick Start
+## Why this project
+
+- ⚙️ **Engineering-first**: clean interfaces and explicit boundary conditions
+- 🎯 **Motion quality options**: choose fast (`TVP`) or smooth (`DSVP`)
+- 🧩 **Composable design**: curve components can be reused in custom planners
+- 🌍 **Portable**: Linux / macOS / Windows (CMake + C++17)
+- 📊 **Visualization-ready**: optional matplotlib-cpp example for quick analysis
+
+## Algorithm At A Glance
+
+| Planner | Best for | Motion smoothness | Complexity |
+|---|---|---|---|
+| `TVP` (Trapezoidal) | Fast prototyping, simple tasks | Medium (acceleration discontinuity) | Low |
+| `DSVP` (Double-S) | Precision motion, vibration-sensitive systems | High (jerk-limited) | Medium |
+| `StraightTrajectory` | Cartesian end-effector linear motion | Depends on base profile | Medium |
+
+## Build
 
 ### Prerequisites
 
 - CMake >= 3.16
-- C++17 compatible compiler
-- Eigen3 (optional, recommended)
+- C++17 compiler (GCC/Clang/MSVC)
+- Eigen3 (optional)
 
-### Build & Install
+### Quick build
 
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+./build.sh
+```
+
+Manual build:
+
+```bash
+mkdir -p build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON -DBUILD_TESTS=OFF
+cmake --build . -j$(nproc)
+```
+
+Install:
+
+```bash
+cd build
 sudo make install
 ```
 
-### Basic Usage
+## 60-Second Usage
 
-#### Example 1: Single DOF Trapezoidal Planning
+### 1) Trapezoidal profile (`TVP`)
 
 ```cpp
 #include <vp/trapezoidal_planner.h>
 
-// Define boundary conditions
 vp::BCs<double> bc;
 bc.start_state.pos = 0.0;
 bc.start_state.vel = 0.0;
 bc.goal_state.pos  = 1.0;
 bc.goal_state.vel  = 0.0;
-bc.max_vel         = 0.5;   // m/s
-bc.max_acc         = 0.3;   // m/s²
-bc.delta_t         = 0.01;  // 10ms
+bc.max_vel         = 0.5;
+bc.max_acc         = 0.3;
+bc.max_jerk        = 0.0;   // not used by TVP
+bc.delta_t         = 0.01;
 
-// Create planner and generate trajectory
 vp::TrapezoidalPlanner planner({bc}, "TVP");
-auto trajectory = planner.planTrajs();
-
-// Access trajectory points
-for (const auto& point : trajectory) {
-    double time     = point[0];  // seconds
-    double position = point[1];  // normalized position
-    double velocity = point[2];  // m/s
-}
+auto traj = planner.planTrajs();
+// point format: [time, pos, vel, acc]
 ```
 
-#### Example 2: Double-S (S-Curve) Planning
+### 2) Double-S profile (`DSVP`)
 
 ```cpp
 #include <vp/double_s_planner.h>
 
-// Define boundary conditions with jerk limit
 vp::BCs<double> bc;
 bc.start_state.pos = 0.0;
 bc.start_state.vel = 0.0;
+bc.start_state.acc = 0.0;
 bc.goal_state.pos  = 1.0;
 bc.goal_state.vel  = 0.0;
-bc.max_vel         = 0.5;   // m/s
-bc.max_acc         = 0.3;   // m/s²
-bc.max_jerk        = 0.5;   // m/s³ (important for S-curve!)
+bc.goal_state.acc  = 0.0;
+bc.max_vel         = 0.5;
+bc.max_acc         = 0.3;
+bc.max_jerk        = 0.5;   // required by DSVP
 bc.delta_t         = 0.01;
 
-// Create Double-S planner with gamma parameter (time scaling)
 vp::DoubleSPlanner planner({bc}, "DSVP", 0.95);
-auto trajectory = planner.planTrajs();
-
-// Access full kinematic states [time, pos, vel, acc, jerk]
-for (const auto& point : trajectory) {
-    double time     = point[0];
-    double position = point[1];
-    double velocity = point[2];
-    double accel    = point[3];
-    double jerk     = point[4];
-}
+auto traj = planner.planTrajs();
+// point format: [time, pos, vel, acc, jerk]
 ```
 
-#### Example 3: Cartesian Space Straight Line Trajectory
+### 3) Multi-DOF planning
+
+```cpp
+#include <vp/multi_velocity_planner.h>
+
+std::vector<vp::BCs<double>> bcs(6);
+vp::MultiVelocityPlanner::initDefaultBCs(bcs, 0.5, 0.3, 0.5, 0.01);
+
+vp::MultiVelocityPlanner planner(bcs, "DSVP");
+auto traj = planner.getTrajs();
+```
+
+### 4) Cartesian straight-line trajectory
 
 ```cpp
 #include <vp/geometry_trajectory/straight_trajectory.h>
 
-// Define start and goal poses [x, y, z, rx, ry, rz]
 std::vector<double> start_pose = {0.0, 0.0, 0.5, 0.0, 0.0, 0.0};
 std::vector<double> goal_pose  = {0.5, 0.3, 0.8, 0.0, 0.0, 1.57};
 
-// Define boundary conditions for normalized time
 vp::BCs<double> bc;
 bc.start_state.pos = 0.0;
-bc.goal_state.pos  = 1.0;  // Normalized
+bc.goal_state.pos  = 1.0;
 bc.max_vel         = 0.5;
 bc.max_acc         = 0.3;
 bc.max_jerk        = 0.5;
 bc.delta_t         = 0.01;
 
-// Create straight trajectory with S-curve profile
-vp::StraightTrajectory straight_traj(start_pose, goal_pose, {bc}, "DSVP");
-auto traj = straight_traj.getTrajs();
-
-// Access Cartesian trajectory
-// Format: [time, x, y, z, rx, ry, rz, vx, vy, vz, wx, wy, wz, ax, ay, az, ...]
-for (const auto& point : traj) {
-    double time = point[0];
-    double x = point[1], y = point[2], z = point[3];
-    double rx = point[4], ry = point[5], rz = point[6];
-    // ... velocities and accelerations follow
-}
+vp::StraightTrajectory straight(start_pose, goal_pose, {bc}, "DSVP");
+auto cart_traj = straight.getTrajs();
+// sample format: [time, x, y, z, rx, ry, rz, ...]
 ```
 
-#### Example 4: Multi-DOF Planning with Factory Pattern
-
-```cpp
-#include <vp/multi_velocity_planner.h>
-
-// Define 6-DOF boundary conditions
-std::vector<vp::BCs<double>> bcs(6);
-vp::MultiVelocityPlanner::initDefaultBCs(bcs, 0.5, 0.3, 0.5, 0.01);
-
-// Create multi-DOF planner - choose algorithm
-vp::MultiVelocityPlanner planner(bcs, "TVP");   // Trapezoidal
-// or
-vp::MultiVelocityPlanner planner(bcs, "DSVP");  // Double-S
-
-auto trajectory = planner.getTrajs();
-```
-
-## API Reference
-
-### Core Interfaces
-
-#### `vp::KinematicState<T>`
-Represents the kinematic state at a specific time.
-
-```cpp
-template <typename T>
-struct KinematicState {
-    T time;   // Time stamp
-    T pos;    // Position
-    T vel;    // Velocity
-    T acc;    // Acceleration
-    T jerk;   // Jerk (3rd derivative)
-};
-```
-
-#### `vp::BoundaryConditions<T>`
-Defines start/goal states and constraints.
-
-```cpp
-template <typename T>
-struct BoundaryConditions {
-    KinematicState<T> start_state;
-    KinematicState<T> goal_state;
-    T max_vel;
-    T max_acc;
-    T max_jerk;
-    T delta_t;
-};
-```
-
-### Planners
-
-#### `vp::TrapezoidalPlanner`
-Classic trapezoidal velocity profile with three phases:
-1. Constant acceleration
-2. Constant velocity (optional)
-3. Constant deceleration
-
-**Pros**: Simple, fast computation, time-optimal  
-**Cons**: Discontinuous acceleration (infinite jerk), may cause vibration
-
-#### `vp::DoubleSPlanner`
-Smooth S-curve velocity profile with seven phases:
-1. Increasing acceleration (positive jerk)
-2. Constant acceleration
-3. Decreasing acceleration (negative jerk)
-4. Constant velocity
-5. Increasing deceleration (negative jerk)
-6. Constant deceleration
-7. Decreasing deceleration (positive jerk)
-
-**Pros**: Continuous acceleration, limited jerk, smooth motion  
-**Cons**: More complex, slightly longer trajectory time
-
-**Constructor Parameters**:
-- `BCs`: Boundary conditions
-- `name`: Algorithm identifier
-- `gamma`: Time scaling factor (0.8-1.0, default 0.95)
-
-#### `vp::StraightTrajectory`
-Cartesian space straight line trajectory planner that combines:
-- **Linear position interpolation** between start and goal poses
-- **Orientation interpolation** (Euler angles or quaternions)
-- **Velocity profile planning** using TVP or DSVP
-
-**Key Features**:
-- Generates smooth Cartesian paths for end-effector motion
-- Supports both joint-space and Cartesian-space planning modes
-- Calculates velocities and accelerations via numerical differentiation
-- Returns full 6-DOF pose trajectory [x, y, z, rx, ry, rz]
-
-**Use Cases**:
-- Linear welding/sealing paths
-- Pick-and-place operations
-- Precision assembly tasks
-- Surface following applications
-
-**Constructor Parameters**:
-- `start_pose`: Start pose [x, y, z, rx, ry, rz]
-- `goal_pose`: Goal pose
-- `BCs`: Boundary conditions for normalized time
-- `alg`: Velocity profile algorithm ("TVP" or "DSVP")
-
-#### `vp::MultiVelocityPlanner`
-Factory-based planner supporting multiple algorithms:
-- `"TVP"` - Trapezoidal Velocity Profile
-- `"DSVP"` - Double-S Velocity Profile
-
-### Curve Interface (Advanced)
-
-The library includes modular curve components:
-
-- **`vp::CurveInterface`** - Abstract base for all curve types
-- **`vp::ConstantJerkTrajectory`** - Single segment with constant jerk
-- **`vp::PiecewiseTrajectory`** - Composite trajectory from multiple segments
-
-These can be used to build custom trajectory planners.
-
-### Exception Handling
+## Exceptions & Error Codes
 
 ```cpp
 try {
-    // Planning code
+    vp::TrapezoidalPlanner planner({bc}, "TVP");
+    auto traj = planner.planTrajs();
 } catch (const vp::PlannerException& e) {
     std::cerr << "Error " << e.errorCode() << ": " << e.what() << std::endl;
 }
 ```
 
-Error codes:
-- `1001` - Constraints not given
-- `1002` - Calculated pose is empty
-- `1008` - Value extends boundary
-- `1009` - Empty input value
+Common error codes:
+- `1001`: constraints missing
+- `1002`: calculated pose is empty
+- `1008`: value out of boundary
+- `1009`: empty input value
 
-## Examples
+## Run Examples
 
-Build examples:
 ```bash
-cmake .. -DBUILD_EXAMPLES=ON
-make
+cd build/examples
+./example_trapezoidal
+./example_double_s
+./example_straight_trajectory
+./example_comparison
+./example_multi_dof
 ```
 
-Run examples:
+## Visualization (Optional) 📊
+
+`example_visualization` is enabled when Python3 dev + NumPy are found.
+
+Dependencies (Ubuntu/Debian):
+
 ```bash
-./examples/example_trapezoidal           # Basic trapezoidal planning
-./examples/example_double_s              # Double-S (S-Curve) planning
-./examples/example_straight_trajectory   # Cartesian straight line trajectory
-./examples/example_comparison            # Compare both algorithms
-./examples/example_multi_dof             # Multi-DOF planning
+sudo apt install python3-dev python3-numpy python3-matplotlib
 ```
+
+Run:
+
+```bash
+cd build/examples
+./example_visualization
+```
+
+Generated images:
+- `velocity_comparison.png`
+- `double_s_kinematics.png`
+- `cartesian_trajectory.png`
+- `acceleration_comparison.png`
+
+More details: [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md)
 
 ## Project Structure
 
-```
-velocity_planning/
-├── include/vp/              # Public headers
+```text
+trajectory_planner_utils/
+├── include/vp/
 │   ├── velocity_planner_interface.h
 │   ├── planner_exception.h
 │   ├── trapezoidal_planner.h
 │   ├── double_s_planner.h
 │   ├── multi_velocity_planner.h
 │   ├── velocity_planning.h
-│   └── curve_interface/     # Advanced curve components
-│   │   ├── curve_interface.h
-│   │   ├── constant_jerk_trajectory.h
-│   │   └── piecewise_trajectory.h
-│   └── geometry_trajectory/ # Geometry trajectory planners
-│       └── straight_trajectory.h
-├── src/                     # Implementation files
 │   ├── curve_interface/
-│   ├── trapezoidal/
-│   ├── double_s/
-│   ├── geometry_trajectory/
-│   │   └── straight_trajectory.cpp
-│   └── multi_velocity_planner.cpp
-├── examples/                # Example programs
-├── tests/                   # Unit tests (coming soon)
+│   └── geometry_trajectory/
+├── include/third_party/
+│   └── matplotlibcpp.h
+├── src/
+├── examples/
 ├── CMakeLists.txt
-└── README.md
+├── build.sh
+└── *.md
 ```
 
-## Design Principles
+## Docs Map
 
-1. **Minimal Dependencies**: Only requires C++17 standard library
-2. **Template-based**: Supports different numeric types (float, double, etc.)
-3. **Exception Safety**: Clear error reporting via exceptions
-4. **Extensible**: Easy to add new planning algorithms
-5. **No Hardware Coupling**: Pure algorithmic implementation
-6. **Modular Architecture**: Reusable curve components
-
-## Algorithm Comparison
-
-| Feature | Trapezoidal | Double-S |
-|---------|-------------|----------|
-| Phases | 3 | 7 |
-| Jerk | Infinite (discontinuous) | Limited (continuous) |
-| Smoothness | Low | High |
-| Computation | Fast | Moderate |
-| Trajectory Time | Shorter | Slightly longer |
-| Vibration | Higher | Lower |
-| Use Case | Simple motions | Precision tasks |
+- [QUICKSTART.md](QUICKSTART.md): 5-minute onboarding
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md): API and decision cheat sheet
+- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md): architecture and module-level perspective
+- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md): plotting workflow and troubleshooting
 
 ## Roadmap
 
-- [x] Complete Double-S (S-Curve) planner implementation
-- [x] Curve interface architecture
-- [ ] Add unit tests with Google Test
-- [ ] Python bindings via pybind11
-- [ ] ROS/ROS2 integration examples
-- [ ] Performance benchmarks
-- [ ] Additional planners (MinSnap, TOPP-RA, etc.)
-- [ ] Visualization tools
+- [ ] Add unit tests (GoogleTest)
+- [ ] Add CI checks (build + examples)
+- [ ] Add Python bindings (pybind11)
+- [ ] Add ROS/ROS2 examples
+- [ ] Add benchmark suite
+
+## Contributing
+
+Issues and PRs are welcome.
+
+If you want to contribute a new planner, keep it aligned with the existing `VelocityPlannerInterface` and provide:
+- clear constraints definition
+- deterministic output format
+- at least one example program
 
 ## License
 
 Apache License 2.0
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit pull requests or open issues.
-
-## Acknowledgments
-
-This library was extracted from industrial robot control systems and refined for general-purpose use. The Double-S implementation uses constant jerk trajectory segments拼接 to achieve smooth motion profiles.
-
-Special thanks to the robotics community for inspiring these implementations.
+Build trajectories with fewer surprises, and debug them with plots before your robot finds the surprises for you 🤖✨
